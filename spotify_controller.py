@@ -1,12 +1,16 @@
+# Install this library by running: pip install spotipy
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import time
 from datetime import timedelta
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-    client_id="71cd9e939ccd445c965118b8c74b237c",
-    client_secret="101602a6a49043b5a7bbbd6cc78780d3",
-    redirect_uri="http://127.0.0.1:8000/callback",
+    client_id=os.getenv("SPOTIPY_CLIENT_ID"),
+    client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
+    redirect_uri=os.getenv("SPOTIPY_REDIRECT_URI"),
     scope="user-modify-playback-state,user-read-playback-state"
 ))
 last_id = None
@@ -40,12 +44,14 @@ def spotify():
     else:
         print("Invalid choice.")
 
-    while True:
+    last_playing = None
+    max_retries = 5
+    for attempt in range(max_retries):
         current = sp.current_playback()
-        current_id = current['item']['id']
-        if current_id != last_id:
-            last_id = current_id
-            if current and current['item']:
+        if current and current['item']:
+            current_id = current['item']['id']
+            is_playing = current['is_playing']
+            if current_id != last_id or is_playing != last_playing:
                 track = current['item']
                 name = track['name']
                 artist = ', '.join([a['name'] for a in track['artists']])
@@ -54,15 +60,20 @@ def spotify():
                 duration_ms = track['duration_ms']
                 progress = str(timedelta(milliseconds=progress_ms)).split('.')[0]
                 duration = str(timedelta(milliseconds=duration_ms)).split('.')[0]
+                state = "▶️ Playing" if is_playing else "⏸️ Paused"
                 print(f"🎵 Now playing: {name} — {artist}")
                 print(f"💿 Album: {album}")
                 print(f"⏰ {progress} / {duration}")
+                print(f"{state}")
+                last_id = current_id
+                last_playing = is_playing
                 break
             else:
-                print("No track is currently playing.")
+                if attempt == max_retries - 1:
+                    print("Nothing change")
         else:
-                print("Nothing change")
-    time.sleep(2)
+            if attempt == max_retries - 1:
+                print("No track is currently playing.")
 
 
 while True:
